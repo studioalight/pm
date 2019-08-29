@@ -35,10 +35,14 @@ function sceneRenderer(container) {
   var hitTest, lastHighlight, lastHighlightSize, cameraPosition;
   var lineView, links, lineViewNeedsUpdate;
   var queryUpdateId = setInterval(updateQuery, 200);
+  var isOrbiting = false;
+  window.orbitSpeed = 16000;
+  var center = new unrender.THREE.Vector3(0, 0, 0);
 
   appEvents.positionsDownloaded.on(setPositions);
   appEvents.linksDownloaded.on(setLinks);
   appEvents.toggleSteering.on(toggleSteering);
+  appEvents.toggleOrbit.on(toggleOrbit);
   appEvents.focusOnNode.on(focusOnNode);
   appEvents.around.on(around);
   appEvents.highlightQuery.on(highlightQuery);
@@ -49,6 +53,7 @@ function sceneRenderer(container) {
 
   appConfig.on('camera', moveCamera);
   appConfig.on('showLinks', toggleLinks);
+  appConfig.on('orbit', toggleOrbit);
 
   var api = {
     destroy: destroy
@@ -87,6 +92,17 @@ function sceneRenderer(container) {
     appEvents.showSteeringMode.fire(isSteering);
   }
 
+  function toggleOrbit() {
+    if (!renderer) return;
+    isOrbiting = appConfig.getOrbit();
+    if(isOrbiting) {
+      var pos = renderer.camera().position;
+      center.x = pos.x;
+      center.y = pos.y;
+      center.z = pos.z;
+    }
+  }
+
   function clearHover() {
     appEvents.nodeHover.fire({
       nodeIndex: undefined,
@@ -108,6 +124,17 @@ function sceneRenderer(container) {
     renderer.around(r, x, y, z);
   }
 
+  function orbit(time) {
+    if(!isOrbiting) return;
+    var camera = renderer.camera();
+    var d = time / window.orbitSpeed;
+    var r = 1000;
+    camera.position.x = center.x + r * Math.cos(d);
+    camera.position.z = center.z + r * Math.sin(d);
+    camera.position.y += r * 0.002 * Math.cos(d);
+    camera.lookAt(center);
+  }
+
   function setPositions(_positions) {
     destroyHitTest();
 
@@ -117,6 +144,7 @@ function sceneRenderer(container) {
     if (!renderer) {
       renderer = unrender(container);
       touchControl = createTouchControl(renderer);
+      renderer.onFrame(orbit);
       moveCameraInternal();
       var input = renderer.input();
       input.on('move', clearHover);
@@ -341,6 +369,7 @@ function sceneRenderer(container) {
     clearInterval(queryUpdateId);
     appConfig.off('camera', moveCamera);
     appConfig.off('showLinks', toggleLinks);
+    appConfig.off('orbit', toggleOrbit);
 
     // todo: app events?
   }
